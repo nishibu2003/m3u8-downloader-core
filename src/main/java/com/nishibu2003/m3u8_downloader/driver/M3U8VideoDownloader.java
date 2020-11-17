@@ -1,4 +1,4 @@
-package com.nishibu2003.m3u8_downloader.video;
+package com.nishibu2003.m3u8_downloader.driver;
 
 import java.io.File;
 import java.io.IOException;

@@ -13,8 +13,8 @@ public class ClassFinder {
     private ClassLoader classLoader;
 
     public ClassFinder() {
-        //classLoader = Thread.currentThread().getContextClassLoader();
-        classLoader = ClassLoader.getSystemClassLoader();
+        classLoader = Thread.currentThread().getContextClassLoader();
+        //classLoader = ClassLoader.getSystemClassLoader();
     }
 
     public ClassFinder(ClassLoader classLoader) {
