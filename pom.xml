@@ -3,7 +3,6 @@
   <groupId>com.nishibu2003</groupId>
   <artifactId>m3u8-downloader-core</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <packaging>jar</packaging>
   
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -11,7 +10,8 @@
 	</properties>
  
      <build>
-        <plugins>
+    <pluginManagement>
+         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -21,7 +21,13 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.2.0</version>
+            </plugin>
         </plugins>
+    </pluginManagement>
     </build>
        
   <dependencies>
