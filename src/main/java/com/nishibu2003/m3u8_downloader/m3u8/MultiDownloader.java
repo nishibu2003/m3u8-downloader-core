@@ -70,17 +70,18 @@ public class MultiDownloader implements Runnable {
 				String path = values[MultiDownloadItems.PATH];
 				String fileName = values[MultiDownloadItems.FILE_NAME];
 				int initial = 20;
+				String threadId = String.format("%2d", this.getThreadId());
 				try {
 					this.download(url ,path ,fileName);
-					System.out.println(this.getThreadId() + " : File Download Completed!!! " + fileName + " ,URL : " + url);
+					System.out.println(threadId + " : File Download Completed!!! " + fileName + " ,URL : " + url);
 					values[MultiDownloadItems.STATUS] = "DONE";
 				} catch (Exception e1) {
 					int counter = initial -1;
-					System.out.println(this.getThreadId() + " : File Download RETRY!!! (" + (initial - counter) + "/" + initial + ") " + fileName + " ,URL : " + url + " ,Exception : " + e1.toString());
+					System.out.println(threadId + " : File Download RETRY!!! (" + (initial - counter) + "/" + initial + ") " + fileName + " ,URL : " + url + " ,Exception : " + e1.toString());
 					Exception causedEx = e1;
 					while(counter > 0) {
 						if (counter <= 0) {
-							System.out.println(this.getThreadId() + " : File Download ERROR!!! " + fileName + " ,URL : " + url);
+							System.out.println(threadId + " : File Download ERROR!!! " + fileName + " ,URL : " + url);
 							causedEx.printStackTrace();
 							values[MultiDownloadItems.STATUS] = "ERROR";
 						} else {
@@ -90,10 +91,10 @@ public class MultiDownloader implements Runnable {
 							try {
 								if (downloadedSize > 0) {
 									this.downloadContinue(url ,path ,fileName ,downloadedSize + 1);
-									System.out.println(this.getThreadId() + " : File Download Completed!!! " + fileName + " (Range " + (downloadedSize + 1) + "-) ,URL : " + url);
+									System.out.println(threadId + " : File Download Completed!!! " + fileName + " (Range " + (downloadedSize + 1) + "-) ,URL : " + url);
 								} else {
 									this.download(url ,path ,fileName);
-									System.out.println(this.getThreadId() + " : File Download Completed!!! " + fileName + " ,URL : " + url);
+									System.out.println(threadId + " : File Download Completed!!! " + fileName + " ,URL : " + url);
 								}
 								values[MultiDownloadItems.STATUS] = "DONE";
 								counter = 0;
@@ -109,7 +110,7 @@ public class MultiDownloader implements Runnable {
 										}
 									}
 								}
-								System.out.println(this.getThreadId() + " : File Download RETRY!!! (" + (initial - counter) + "/" + initial + ") " + fileName + " ,URL : " + url + " ,Exception : " + e3.toString());
+								System.out.println(threadId + " : File Download RETRY!!! (" + (initial - counter) + "/" + initial + ") " + fileName + " ,URL : " + url + " ,Exception : " + e3.toString());
 								values[MultiDownloadItems.STATUS] = "RETRY";
 								
 								causedEx = e3;
