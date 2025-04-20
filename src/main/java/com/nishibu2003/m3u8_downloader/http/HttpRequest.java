@@ -235,11 +235,23 @@ public class HttpRequest {
 		}
 		
 		List<String> entry = _responseHeaderMap.get(name);
-		if (entry == null) {
-			return null;
+		if (entry != null && !entry.isEmpty()) {
+			return entry.get(0);
 		}
 		
-		return entry.get(0);
+		for (String key: _responseHeaderMap.keySet()) {
+			if (key == null) {
+				continue;
+			}
+			if (name.toUpperCase().equals(key.toUpperCase())) {
+				entry = _responseHeaderMap.get(key);
+				if (entry != null && !entry.isEmpty()) {
+					return entry.get(0);
+				}
+			}
+		}
+		
+		return null;
 	}
 	
 	public void setInstanceFollowRedirects(boolean followRedirects) {
