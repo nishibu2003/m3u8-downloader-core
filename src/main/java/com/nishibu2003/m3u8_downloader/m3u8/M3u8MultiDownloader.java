@@ -3,7 +3,10 @@ package com.nishibu2003.m3u8_downloader.m3u8;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,33 +32,67 @@ public class M3u8MultiDownloader implements ISync{
 		return this;
 	}
 
-	public void execute(String url, String path, String fileName) throws Exception {
-		this.execute(url, path, fileName, 20);
+	public void execute(String url, String path) throws Exception {
+		this.execute(url, path, 20);
 	}
 
+	@Deprecated
+	public void execute(String url, String path, String fileName) throws Exception {
+		this.execute(url, path, 20);
+	}
+
+	@Deprecated
 	public void execute(String url, String path, String fileName ,int maxThread) throws Exception {
-		String baseURL = url;
-		
+		this.execute(url, path, maxThread);
+	}
+
+	public void execute(String url, String path ,int maxThread) throws Exception {
 		this.mkdir(path);
 		
 		List<Header> requestHeaderList = new ArrayList<Header>();
 		requestHeaderList.addAll(_addHeaderList);
-		
+
 		// M3U8ファイルのダウンロード
-		Header[] m3u8ResponseHeaders = this.downloadM3U8(url, path, "original.m3u8" ,requestHeaderList.toArray(new Header[]{}));
+		String originalM3u8FileName = "original.m3u8";
+		Header[] m3u8ResponseHeaders = this.downloadM3U8(url, path, originalM3u8FileName ,requestHeaderList.toArray(new Header[]{}));
 		requestHeaderList.addAll(Arrays.asList(HeaderUtil.getCookie(m3u8ResponseHeaders)));
 		M3U8Loader loader = new M3U8Loader();
-		M3U8 m3u8 = loader.load(path, "original.m3u8");
+		M3U8 m3u8 = loader.load(path, originalM3u8FileName);
 
-		List<String[]> streamList = m3u8.getStreamList();
-		if (streamList.size() > 0) {
-			String streamURL = M3U8Analyzer.choiceStream(streamList);
-			baseURL = URLutil.normalize(url, streamURL);
+		if (m3u8.getInfList().size() > 0) {
+			String prefix = "";
+			String baseURL = url;
+			this.downloadFiles(baseURL, m3u8, path, prefix ,maxThread);
+		} else {
+			M3U8Analyzer m3u8Analyzer = new M3U8Analyzer(m3u8);
+			String[] bestUriList = m3u8Analyzer.getBestUriList();
+			Map<String, String> bestUrIMap = new LinkedHashMap<String, String>();
+			if (bestUriList.length == 1) {
+				bestUrIMap.put("", bestUriList[0]);
+			} else if (bestUriList.length == 2) {
+				bestUrIMap.put("v-", bestUriList[0]);
+				bestUrIMap.put("a-", bestUriList[1]);
+			}
 			
-			Header[] m3u8ResponseHeaders2 = this.downloadM3U8(baseURL, path, "quality.m3u8" ,requestHeaderList.toArray(new Header[]{}));
-			requestHeaderList.addAll(Arrays.asList(HeaderUtil.getCookie(m3u8ResponseHeaders2)));
-			m3u8 = loader.load(path, "quality.m3u8");
+			for (Entry<String, String> entry : bestUrIMap.entrySet()) {
+				String prefix = entry.getKey();
+				String streamURL = entry.getValue();
+				String baseURL = URLutil.normalize(url, streamURL);
+				
+				String qualityM3u8FileName = prefix + "quality.m3u8";
+				Header[] m3u8ResponseHeaders2 = this.downloadM3U8(baseURL, path, qualityM3u8FileName ,requestHeaderList.toArray(new Header[]{}));
+				requestHeaderList.addAll(Arrays.asList(HeaderUtil.getCookie(m3u8ResponseHeaders2)));
+				m3u8 = loader.load(path, qualityM3u8FileName);
+				this.downloadFiles(baseURL, m3u8, path, prefix ,maxThread);
+			}
 		}
+		
+		System.out.println("Completed!!!");
+	}
+
+	public void downloadFiles(String baseURL, M3U8 m3u8, String path, String prefix, int maxThread) throws Exception {
+		List<Header> requestHeaderList = new ArrayList<Header>();
+		requestHeaderList.addAll(_addHeaderList);
 		
 		String[] lines = m3u8.getLines();
 		if (lines.length > 0) {
@@ -77,7 +114,7 @@ public class M3u8MultiDownloader implements ISync{
 					if (m1.find()) {
 						String keyURI = m1.group(1);
 						keyIdx++;
-						String keyName = String.format("encrypt%d.key", keyIdx);
+						String keyName = prefix + String.format("encrypt%d.key", keyIdx);
 						String keyUrl = URLutil.normalize(baseURL, keyURI);
 						items.add(keyUrl, path, keyName);
 						
@@ -88,7 +125,7 @@ public class M3u8MultiDownloader implements ISync{
 					infIdx++;
 					infFlg = true;
 				} else if (infFlg && !line.startsWith("#")) {
-					String tsName = String.format("%05d", infIdx) + ".ts";
+					String tsName = prefix + String.format("%05d", infIdx) + ".ts";
 					String infUrl = URLutil.normalize(baseURL, line);
 					items.add(infUrl, path, tsName);
 					newLines[i] = tsName;
@@ -97,13 +134,13 @@ public class M3u8MultiDownloader implements ISync{
 				}
 			}
 
+			M3U8Loader loader = new M3U8Loader();
 			M3U8 newM3u8 = loader.load(path, newLines);
 			M3U8Writer writer = new M3U8Writer();
-			writer.write(path ,"new.m3u8" ,newM3u8);
-			writer.write(path ,"new2.m3u8" ,urlLines);
+			writer.write(path ,prefix + "new.m3u8" ,newM3u8);
+			writer.write(path ,prefix + "new2.m3u8" ,urlLines);
 			
 			this.download(items ,requestHeaderList.toArray(new Header[]{}) ,maxThread);
-			System.out.println("Completed!!!");
 		}
 	}
 
@@ -196,16 +233,14 @@ public class M3u8MultiDownloader implements ISync{
 	 */
 	public static void main(String[] args) {
 		try {
-//			String url = "https://gw.gyao.yahoo.co.jp/v1/hls/00100:v08279:v0993900000000548730/variant.m3u8?device_type=1100&delivery_type=2&min_bandwidth=245&appkey=52hd8q-XnozawaXc727tmojaFD.SD1yc&appid=dj0zaiZpPVlRQjFQYll1VTA0OCZzPWNvbnN1bWVyc2VjcmV0Jng9OWI-";
-//			String path = "C:\\ide\\work";
-//			String fileName = "gyao.m3u8";
+			String url = "https://manifest.streaks.jp/v6/tver-ntv/05bd9a75e6db4e978353f323d62fedd3/3596a38ecd054515a0f8398339a0dab3/hls/v3/manifest.m3u8?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYyI6IjgxOWNmZGMwMjBhYzQ4MGI5YjA2MDBiNWFmYjMzMWEzIiwiZWRnZSI6IjkzOTdhNjg0NTg3NTQ4OWM4NjdmZGI2MzVkNTBlNzkyIiwiY29kZWNzIjoiYXV0byIsImV4cCI6MTc1NDk4OTIwMCwidnA5IjoxLCJzbSI6Ijc0ZDQyZDczMmY3ODQ4NTY4YWQ4Njk1MTdkMGM2ZDk5IiwicHB3IjoiNDc1In0.eCquwFiVQsH2LVpmdg6_Duji35l8d2QyOAMnQ1lir48";
+			String path = "C:\\Users\\Anonymous\\Documents\\workspace-sts-m3u8\\m3u8-downloader-driver\\Test";
 			
-			String url = args[0];
-			String path = args[1];
-			String fileName = args[2];
+//			String url = args[0];
+//			String path = args[1];
 			
 			M3u8MultiDownloader m3u8Downloader = new M3u8MultiDownloader();
-			m3u8Downloader.execute(url, path, fileName);
+			m3u8Downloader.execute(url, path);
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(-1);

@@ -8,8 +8,15 @@ import java.util.List;
 
 
 public class M3u8Downloader {
-	
 	public void execute(String url, String path, String fileName) throws Exception {
+		String prefix = "";
+		this.execute(url, path, fileName, prefix);
+	}
+	
+	public void execute(String url, String path, String fileName, String prefix) throws Exception {
+		if (prefix == null) {
+			throw new RuntimeException("prefix is null.");
+		}
 		
 		// M3U8ファイルのダウンロード
 		this.downloadM3U8(url, path, fileName);
@@ -20,8 +27,8 @@ public class M3u8Downloader {
 		if (streamList.size() > 0) {
 			String streamURL = M3U8Analyzer.choiceStream(streamList);
 			URI uri = URLutil.resolve(new URI(url), streamURL);
-			this.downloadM3U8(uri.toString(), path, "quality.m3u8");
-			m3u8 = loader.load(path, "quality.m3u8");
+			this.downloadM3U8(uri.toString(), path, prefix + "quality.m3u8");
+			m3u8 = loader.load(path, prefix + "quality.m3u8");
 		}
 		
 		M3U8 newM3u8 = m3u8.clone();
@@ -30,7 +37,7 @@ public class M3u8Downloader {
 		if (keyList.size() > 0) {
 			for (int i = 0; i < keyList.size(); i++) {
 				String[] key = keyList.get(i);
-				String keyName = String.format("encrypt%d", i) + ".key";
+				String keyName = prefix + String.format("encrypt%d", i) + ".key";
 				String keyURI = M3U8Analyzer.getKeyURI(key[1]);
 				if (keyURI != null) {
 					URI uri = URLutil.resolve(new URI(url), keyURI);
@@ -53,7 +60,7 @@ public class M3u8Downloader {
 			
 			for (int i = 0; i < infList.size(); i++) {
 				String[] inf = infList.get(i);
-				String tsName = String.format("%05d", i) + ".ts";
+				String tsName = prefix + String.format("%05d", i) + ".ts";
 				URI uri = URLutil.resolve(new URI(url), inf[1]);
 				HttpGetAsFile downloader = new HttpGetAsFile(uri.getRawPath(), path, tsName);
 				downloader.execute();
@@ -65,7 +72,7 @@ public class M3u8Downloader {
 			}
 			
 			M3U8Writer writer = new M3U8Writer();
-			writer.write(path ,"new.m3u8" ,newM3u8);
+			writer.write(path ,prefix + "new.m3u8" ,newM3u8);
 		}
 	}
 	
