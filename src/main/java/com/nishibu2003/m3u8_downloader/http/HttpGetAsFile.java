@@ -50,7 +50,7 @@ public class HttpGetAsFile {
 				is = _httpGet.getContents();
 				
 				int nRead;
-				byte[] data = new byte[16384];
+				byte[] data = new byte[1048576];
 				while ((nRead = is.read(data, 0, data.length)) != -1) {
 					os.write(data ,0 ,nRead);
 					_totalSize += nRead;
