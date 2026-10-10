@@ -1,4 +1,4 @@
-package com.nishibu2003.m3u8_downloader.http;
+	package com.nishibu2003.m3u8_downloader.http;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -126,7 +126,7 @@ public class HttpRequest {
 		
 		_statusCode = _urlConn.getResponseCode();
 		_responseHeaderMap = _urlConn.getHeaderFields();
-		_contentLength = _urlConn.getContentLength();
+		_contentLength = this.getUrlContentLength(_urlConn);
 		_contentType = _urlConn.getContentType();
 		_charset = this.getCharset(_contentType);
 		InputStream is = null;
@@ -146,6 +146,26 @@ public class HttpRequest {
 		}
 	}
 	
+	/**
+	 * get Content-Length value from HTTP header.
+	 * 
+	 * @param urlConn
+	 * @return
+	 */
+	private long getUrlContentLength(HttpURLConnection urlConn) {
+		String contentLength = urlConn.getHeaderField("Content-Length");
+
+		if (contentLength != null) {
+		    try {
+		        return Long.parseLong(contentLength);
+		    } catch (NumberFormatException e) {
+		    	return -1;
+		    }
+		} else {
+			return -1;
+		}
+	}
+
 	/**
 	 * 読み取りタイムアウトを設定する。接続開始前に設定すること。
 	 * @param timeoutMillis ミリ秒。0 は無期限。
