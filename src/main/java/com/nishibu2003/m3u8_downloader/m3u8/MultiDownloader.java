@@ -65,66 +65,63 @@ public class MultiDownloader implements Runnable {
 	public void run() {
 		try {
 			String[] values;
-			while ((values = _items.assign()) != null){
+			while ((values = _items.assign()) != null) {
 				String url = values[MultiDownloadItems.URL];
 				String path = values[MultiDownloadItems.PATH];
 				String fileName = values[MultiDownloadItems.FILE_NAME];
-				int initial = 20;
 				String threadId = String.format("%2d", this.getThreadId());
 				try {
-					this.download(url ,path ,fileName);
+					long resumeStart = parseLong(values[MultiDownloadItems.RESUME_START], 0);
+					if (resumeStart > 0) {
+						this.downloadContinue(url, path, fileName, resumeStart);
+					} else {
+						this.download(url, path, fileName);
+					}
 					System.out.println(threadId + " : File Download Completed!!! " + fileName + " ,URL : " + url);
 					values[MultiDownloadItems.STATUS] = "DONE";
-				} catch (Exception e1) {
-					int counter = initial -1;
-					System.out.println(threadId + " : File Download RETRY!!! (" + (initial - counter) + "/" + initial + ") " + fileName + " ,URL : " + url + " ,Exception : " + e1.toString());
-					Exception causedEx = e1;
-					while(counter > 0) {
-						if (counter <= 0) {
-							System.out.println(threadId + " : File Download ERROR!!! " + fileName + " ,URL : " + url);
-							causedEx.printStackTrace();
-							values[MultiDownloadItems.STATUS] = "ERROR";
-						} else {
-							long downloadedSize = this.getDownloadedSize(path ,fileName);
-							// TODO 8096byte
-							downloadedSize = downloadedSize - 8096;
-							try {
-								if (downloadedSize > 0) {
-									this.downloadContinue(url ,path ,fileName ,downloadedSize + 1);
-									System.out.println(threadId + " : File Download Completed!!! " + fileName + " (Range " + (downloadedSize + 1) + "-) ,URL : " + url);
-								} else {
-									this.download(url ,path ,fileName);
-									System.out.println(threadId + " : File Download Completed!!! " + fileName + " ,URL : " + url);
-								}
-								values[MultiDownloadItems.STATUS] = "DONE";
-								counter = 0;
-								break;
-							} catch (Exception e3) {
-								if (e3 instanceof HttpRetryException) {
-									HttpRetryException httpRetryException = (HttpRetryException)e3;
-									if (httpRetryException.responseCode() == 416) {
-										try {
-											this.deleteFile(path ,fileName);
-										} catch (Exception e) {
-											// ignore
-										}
-									}
-								}
-								System.out.println(threadId + " : File Download RETRY!!! (" + (initial - counter) + "/" + initial + ") " + fileName + " ,URL : " + url + " ,Exception : " + e3.toString());
-								values[MultiDownloadItems.STATUS] = "RETRY";
-								
-								causedEx = e3;
-								Thread.sleep((long)(Math.random() * 20000));
-							}
-						}
-						counter--;
+				} catch (Exception e) {
+					int retryCount = (int)parseLong(values[MultiDownloadItems.RETRY_COUNT], 0) + 1;
+					values[MultiDownloadItems.RETRY_COUNT] = String.valueOf(retryCount);
+					System.out.println(threadId + " : File Download RETRY!!! (" + retryCount + "/20) " + fileName + " ,URL : " + url + " ,Exception : " + e.toString());
+					if (retryCount >= 20) {
+						values[MultiDownloadItems.STATUS] = "ERROR";
+						e.printStackTrace();
+					} else {
+						long downloadedSize = this.getDownloadedSize(path, fileName);
+						// 書き込み途中の末尾ブロックを少し巻き戻し、安全側から再開する。
+						long resumeStart = downloadedSize > 8096 ? downloadedSize - 8096 + 1 : 0;
+						values[MultiDownloadItems.RESUME_START] = String.valueOf(resumeStart);
+						values[MultiDownloadItems.STATUS] = "RETRY";
+						// 失敗したワーカーは終了し、別の Java スレッドに再試行を引き継ぐ。
+						startReplacementWorker();
+						break;
 					}
 				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+		} finally {
+			_sync.delSync();
 		}
-		_sync.delSync();
+	}
+
+	private long parseLong(String value, long defaultValue) {
+		try {
+			return Long.parseLong(value);
+		} catch (Exception e) {
+			return defaultValue;
+		}
+	}
+
+	private void startReplacementWorker() {
+		MultiDownloader downloader = new MultiDownloader(_sync);
+		downloader.setThreadId(_threadId);
+		downloader.setItems(_items);
+		for (Header header : _addHeaderList) {
+			downloader.addHeader(header.getName(), header.getValue());
+		}
+		Thread thread = new Thread(downloader, "FileDownloader-retry-" + _threadId);
+		thread.start();
 	}
 
 	/**
@@ -159,6 +156,7 @@ public class MultiDownloader implements Runnable {
 
 	public void download(String url, String path, String fileName) throws UnsupportedOperationException, IOException {
 		HttpGetAsFile httpGet = new HttpGetAsFile(url ,path ,fileName);
+		httpGet.setReadTimeout(30000);
 		for (Header header : _addHeaderList) {
 			httpGet.addHeader(header);
 		}
@@ -182,6 +180,7 @@ public class MultiDownloader implements Runnable {
 		HttpGet httpGet = null;
 		try {
 			httpGet = new HttpGet(innerUrl);
+		httpGet.setReadTimeout(30000);
 			
 			for (Header header : _addHeaderList) {
 				httpGet.addHeader(header);
@@ -192,7 +191,15 @@ public class MultiDownloader implements Runnable {
 			httpGet.execute();
 			InputStream is = httpGet.getContents();
 			int responseCode = httpGet.getStatusCode();
-			if (responseCode / 100 == 2) {
+			if (responseCode == 200) {
+				// サーバーが Range を無視した場合、途中位置に全ファイルを書き込まない。
+				httpGet.close();
+				httpGet = null;
+				this.deleteFile(path, fileName);
+				this.download(innerUrl, path, fileName);
+				return;
+			}
+			if (responseCode == 206) {
 				String filePath = path + File.separatorChar + fileName;
 				raf = new RandomAccessFile(filePath, "rw");
 				raf.seek(startRange);

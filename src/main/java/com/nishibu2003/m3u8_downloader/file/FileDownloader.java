@@ -39,6 +39,9 @@ public class FileDownloader implements ISync {
 		items.add(url, path, fileName);
 		
 		this.download(items ,requestHeaderList.toArray(new Header[]{}) ,maxThread);
+		if (items.hasError()) {
+			throw new Exception("ダウンロードに失敗しました。再試行回数の上限に達した項目があります。");
+		}
 		System.out.println("Completed!!!");
 	}
 

@@ -22,6 +22,12 @@ public class HttpGetAsFile {
 		_responseHeaders = null;
 	}
 	
+	/** 読み取りタイムアウトを設定する（ミリ秒）。 */
+	public HttpGetAsFile setReadTimeout(int timeoutMillis) {
+		_httpGet.setReadTimeout(timeoutMillis);
+		return this;
+	}
+
 	public HttpGetAsFile addHeader(String name ,String value) {
 		_httpGet.addHeader(name, value);
 		return this;

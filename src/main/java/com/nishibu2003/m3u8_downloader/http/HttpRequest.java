@@ -34,6 +34,8 @@ public class HttpRequest {
 	private int _statusCode = -1;
 	private Map<String, List<String>>_responseHeaderMap = null;
 	private long _contentLength = -1;
+	/** 読み取りタイムアウト（ミリ秒）。 */
+	private int _readTimeout = 30000;
 	
 	
 	public HttpRequest(String method ,String url) {
@@ -77,6 +79,7 @@ public class HttpRequest {
 		}
 		
 		_urlConn.setConnectTimeout(30000);
+		_urlConn.setReadTimeout(_readTimeout);
 		
 		_urlConn.setRequestMethod(_method);
 		if (_params.size() > 0) {
@@ -143,6 +146,17 @@ public class HttpRequest {
 		}
 	}
 	
+	/**
+	 * 読み取りタイムアウトを設定する。接続開始前に設定すること。
+	 * @param timeoutMillis ミリ秒。0 は無期限。
+	 */
+	public void setReadTimeout(int timeoutMillis) {
+		if (timeoutMillis < 0) {
+			throw new IllegalArgumentException("timeoutMillis must be >= 0");
+		}
+		_readTimeout = timeoutMillis;
+	}
+
 	public void close() {
 		if (_contents != null) {
 			try {
